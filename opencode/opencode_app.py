@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import json
 import os
 from pathlib import Path
-from opencode_evaluation import OpencodeEvaluator
+from opencode.opencode_evaluation import OpencodeEvaluator
 import logging
 
 logging.basicConfig(

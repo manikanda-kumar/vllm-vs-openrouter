@@ -5,8 +5,8 @@ import plotly.express as px
 import logging
 import os
 from dotenv import load_dotenv
-from model_service import get_parallel_responses
-from code_evaluation import evaluate_code
+from codegen.model_service import get_parallel_responses
+from codegen.code_evaluation import evaluate_code
 
 load_dotenv()
 

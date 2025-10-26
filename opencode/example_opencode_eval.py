@@ -4,7 +4,7 @@ Simple example demonstrating opencode agent evaluation.
 This script runs a quick test comparing two models on a simple task.
 """
 
-from opencode_evaluation import OpencodeEvaluator
+from opencode.opencode_evaluation import OpencodeEvaluator
 import logging
 
 logging.basicConfig(

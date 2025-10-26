@@ -6,7 +6,7 @@ Usage: python test_opencode.py [--repo PATH] [--models MODEL1,MODEL2] [--prompt 
 
 import argparse
 import sys
-from opencode_evaluation import OpencodeEvaluator
+from opencode.opencode_evaluation import OpencodeEvaluator
 import logging
 
 logging.basicConfig(

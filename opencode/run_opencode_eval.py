@@ -11,7 +11,7 @@ import argparse
 import sys
 import json
 from pathlib import Path
-from opencode_evaluation import OpencodeEvaluator
+from opencode.opencode_evaluation import OpencodeEvaluator
 import logging
 
 logging.basicConfig(
