@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import json
 import os
 from pathlib import Path
-from opencode_evaluation import OpencodeEvaluator
+from opencode_evaluation import OpencodeEvaluator, strip_ansi
 import logging
 
 logging.basicConfig(
@@ -307,18 +307,24 @@ if st.session_state.evaluation_results:
                 
                 st.write(f"**Response Length:** {analysis['metrics']['response_length']} characters")
                 
+                if analysis['metrics'].get('empty_response'):
+                    st.warning("⚠️ Empty response - agent succeeded but produced no output")
+                
                 if raw.get("stdout"):
                     st.write("**Output:**")
-                    st.code(raw["stdout"], language="text")
+                    stdout_clean = strip_ansi(raw["stdout"])
+                    st.code(stdout_clean, language="text")
 
                 if raw.get("stderr"):
+                    stderr_clean = strip_ansi(raw["stderr"])
                     if analysis["metrics"]["has_errors"]:
                         st.write("**Errors (stderr):**")
-                        st.code(raw["stderr"], language="text")
+                        st.code(stderr_clean, language="text")
                     else:
-                        st.write("**Logs (stderr):**")
                         with st.container():
-                            st.code(raw["stderr"], language="text")
+                            st.write("**📋 Logs (stderr):**")
+                            with st.container():
+                                st.code(stderr_clean, language="text", height=150)
                 
                 st.write("---")
     

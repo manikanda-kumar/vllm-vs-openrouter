@@ -4,8 +4,9 @@ import os
 import time
 import tempfile
 import shutil
+import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Set
 import logging
 
 logging.basicConfig(
@@ -13,6 +14,13 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# ANSI color code regex for stripping terminal colors
+ANSI_RE = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI color codes from text."""
+    return ANSI_RE.sub('', text)
 
 
 class OpencodeEvaluator:
@@ -138,13 +146,17 @@ class OpencodeEvaluator:
             "metrics": {}
         }
         
-        stdout = result.get("stdout", "")
-        stderr = result.get("stderr", "")
-        combined = (stdout + "\n" + stderr).lower()
+        stdout_raw = result.get("stdout", "")
+        stderr_raw = result.get("stderr", "")
         
-        # Check if tools were used - scan both stdout and stderr
-        analysis["metrics"]["tools_used"] = self._detect_tools_used(combined)
-        analysis["metrics"]["tool_count"] = len(analysis["metrics"]["tools_used"])
+        # Strip ANSI codes for cleaner analysis
+        stdout = strip_ansi(stdout_raw)
+        stderr = strip_ansi(stderr_raw)
+        
+        # Detect tools from stderr (where tool logs appear)
+        tools_used = self._detect_tools_used(stderr)
+        analysis["metrics"]["tools_used"] = tools_used
+        analysis["metrics"]["tool_count"] = len(tools_used)
         
         # Strict error detection: only count actual failures
         # Don't count stderr alone as many tools output logs/info to stderr
@@ -155,52 +167,77 @@ class OpencodeEvaluator:
         
         # Check response completeness
         analysis["metrics"]["response_length"] = len(stdout)
+        analysis["metrics"]["empty_response"] = len(stdout.strip()) == 0
         analysis["metrics"]["has_code"] = "```" in stdout or "def " in stdout or "class " in stdout
         
-        # Check for file operations
-        analysis["metrics"]["file_operations"] = self._detect_file_operations(combined)
-        
-        # Check for search operations
-        analysis["metrics"]["search_operations"] = self._detect_search_operations(combined)
+        # Map tools to operation categories
+        analysis["metrics"]["file_operations"] = self._map_file_operations(tools_used)
+        analysis["metrics"]["search_operations"] = self._map_search_operations(tools_used)
         
         return analysis
     
-    def _detect_tools_used(self, text: str) -> List[str]:
-        """Detect which tools were mentioned/used in the output."""
-        tools = []
-        tool_keywords = [
-            "glob", "grep", "read", "read_file", "edit", "grep_search", 
-            "file_search", "run_in_terminal", "list_dir", "semantic_search",
-            "fetch_url", "web_search", "mkdir", "delete_file", "list"
-        ]
+    def _detect_tools_used(self, stderr: str) -> List[str]:
+        """Detect which tools were used from stderr logs."""
+        tools = set()
+        stderr_lower = stderr.lower()
         
-        text_lower = text.lower()
-        for tool in tool_keywords:
-            if tool in text_lower:
-                tools.append(tool)
+        # Tool patterns with word boundaries to avoid false positives
+        tool_patterns = {
+            r'\bglob\b': 'glob',
+            r'\bgrep\b': 'grep',
+            r'\bread\b': 'read',
+            r'\bread_file\b': 'read_file',
+            r'\blist\b': 'list',
+            r'\blist_dir\b': 'list_dir',
+            r'\bedit\b': 'edit',
+            r'\bmkdir\b': 'mkdir',
+            r'\bdelete_file\b': 'delete_file',
+            r'\bweb_search\b': 'web_search',
+            r'\bsemantic_search\b': 'semantic_search',
+            r'\bfile_search\b': 'file_search',
+            r'\bgrep_search\b': 'grep_search',
+            r'\brun_in_terminal\b': 'run_in_terminal',
+            r'\bfetch_url\b': 'fetch_url'
+        }
         
-        return list(set(tools))
+        for pattern, tool_name in tool_patterns.items():
+            if re.search(pattern, stderr_lower):
+                tools.add(tool_name)
+        
+        return sorted(list(tools))
     
-    def _detect_file_operations(self, output: str) -> List[str]:
-        """Detect file operations in the output."""
+    def _map_file_operations(self, tools_used: List[str]) -> List[str]:
+        """Map detected tools to file operation categories."""
         operations = []
-        if "read" in output.lower() or "reading" in output.lower():
+        tools_set = set(tools_used)
+        
+        file_read_tools = {"read", "read_file", "list", "list_dir"}
+        file_edit_tools = {"edit"}
+        file_create_tools = {"mkdir"}
+        file_delete_tools = {"delete_file"}
+        
+        if tools_set & file_read_tools:
             operations.append("read")
-        if "edit" in output.lower() or "editing" in output.lower() or "modif" in output.lower():
+        if tools_set & file_edit_tools:
             operations.append("edit")
-        if "creat" in output.lower():
+        if tools_set & file_create_tools:
             operations.append("create")
-        if "delet" in output.lower():
+        if tools_set & file_delete_tools:
             operations.append("delete")
+        
         return operations
     
-    def _detect_search_operations(self, output: str) -> List[str]:
-        """Detect search operations in the output."""
+    def _map_search_operations(self, tools_used: List[str]) -> List[str]:
+        """Map detected tools to search operation categories."""
         operations = []
-        if "grep" in output.lower() or "search" in output.lower():
+        tools_set = set(tools_used)
+        
+        search_tools = {"glob", "grep", "web_search", "semantic_search", 
+                       "file_search", "grep_search"}
+        
+        if tools_set & search_tools:
             operations.append("search")
-        if "find" in output.lower():
-            operations.append("find")
+        
         return operations
     
     def compare_models(
@@ -276,24 +313,27 @@ class OpencodeEvaluator:
                 report.append(f"Search Operations: {', '.join(analysis['metrics']['search_operations']) if analysis['metrics']['search_operations'] else 'None'}")
                 report.append(f"Has Code: {analysis['metrics']['has_code']}")
                 report.append(f"Response Length: {analysis['metrics']['response_length']} chars")
+                report.append(f"Empty Response: {analysis['metrics']['empty_response']}")
                 report.append(f"Has Errors: {analysis['metrics']['has_errors']}")
                 
                 if raw.get("stdout"):
+                    stdout_clean = strip_ansi(raw["stdout"])
                     report.append(f"\nOutput Preview (first 500 chars):")
                     report.append("-" * 50)
-                    report.append(raw["stdout"][:500])
+                    report.append(stdout_clean[:500])
                     report.append("-" * 50)
                 
                 if raw.get("stderr"):
+                    stderr_clean = strip_ansi(raw["stderr"])
                     if analysis['metrics']['has_errors']:
                         report.append(f"\nErrors (stderr):")
                         report.append("-" * 50)
-                        report.append(raw["stderr"][:500])
+                        report.append(stderr_clean[:500])
                         report.append("-" * 50)
                     else:
                         report.append(f"\nLogs (stderr):")
                         report.append("-" * 50)
-                        report.append(raw["stderr"][:500])
+                        report.append(stderr_clean[:500])
                         report.append("-" * 50)
                 
                 report.append("")
