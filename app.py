@@ -2,12 +2,29 @@ import asyncio
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import logging
+import os
 from dotenv import load_dotenv
 from model_service import get_parallel_responses
-from code_ingestion import ingest_github_repo
 from code_evaluation import evaluate_code
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+logger.info("=" * 80)
+logger.info("Application Starting")
+logger.info("=" * 80)
+logger.info("Environment Configuration:")
+logger.info(f"  VLLM_BASE_URL: {os.getenv('VLLM_BASE_URL', 'http://localhost:8000/v1')}")
+logger.info(f"  VLLM_MODEL_NAME: {os.getenv('VLLM_MODEL_NAME', 'openai/gpt-oss-20b')}")
+logger.info(f"  VLLM_API_KEY: {'Set' if os.getenv('VLLM_API_KEY') else 'Not set (using default)'}")
+logger.info(f"  OPENROUTER_API_KEY: {'Set' if os.getenv('OPENROUTER_API_KEY') else 'Not set'}")
+logger.info("=" * 80)
 
 # Set page config
 st.set_page_config(
@@ -45,31 +62,42 @@ st.markdown("""
 # Initialize session state
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
-if 'context' not in st.session_state:
-    st.session_state.context = None
 if 'reference_code' not in st.session_state:
     st.session_state.reference_code = None
 if 'last_generated_code' not in st.session_state:
     st.session_state.last_generated_code = {"vllm": None, "openrouter": None}
 if 'evaluation_results' not in st.session_state:
     st.session_state.evaluation_results = {"vllm": None, "openrouter": None}
+if 'generate_code_trigger' not in st.session_state:
+    st.session_state.generate_code_trigger = False
+if 'current_prompt' not in st.session_state:
+    st.session_state.current_prompt = None
 
 with st.sidebar:
     st.title("Configuration")
-    
-    github_repo = st.text_input(
-        "GitHub Repository URL",
-        placeholder="https://github.com/username/repository"
+
+    # Code Generation section
+    st.write("### Code Generation")
+    code_prompt = st.text_area(
+        "Code Generation Prompt",
+        placeholder="Enter your code generation request here...",
+        help="Describe what code you want to generate",
+        height=150
     )
-    
-    if st.button("Ingest Repository"):
-        if github_repo:
-            with st.spinner("Ingesting repository..."):
-                st.session_state.context = ingest_github_repo(github_repo)
-            st.success("Repository ingested successfully!")
+
+    if st.button("Generate Code"):
+        logger.info("User clicked Generate Code button")
+        if not code_prompt:
+            logger.warning("Code generation attempted without prompt")
+            st.error("Please enter a code generation prompt!")
         else:
-            st.error("Please enter a valid repository URL")
-    
+            logger.info(f"Starting code generation with prompt: {code_prompt[:100]}...")
+            st.session_state.current_prompt = code_prompt
+            st.session_state.generate_code_trigger = True
+            st.rerun()
+
+    st.write("---")
+
     st.session_state.reference_code = st.text_area(
         "Reference Code (Optional)",
         help="Enter reference/ground truth code to compare against",
@@ -79,25 +107,36 @@ with st.sidebar:
     # Evaluation section
     st.write("### Evaluation")
     if st.button("Evaluate Generated Code"):
+        logger.info("User requested code evaluation")
+        logger.info(f"  vLLM code available: {bool(st.session_state.last_generated_code['vllm'])}")
+        logger.info(f"  OpenRouter code available: {bool(st.session_state.last_generated_code['openrouter'])}")
+
         if st.session_state.last_generated_code["vllm"] and st.session_state.last_generated_code["openrouter"]:
+            logger.info("Starting code evaluation for both models")
             with st.spinner("Evaluating code..."):
+                logger.info("Evaluating vLLM generated code...")
                 st.session_state.evaluation_results["vllm"] = evaluate_code(
                     st.session_state.last_generated_code["vllm"],
                     st.session_state.reference_code if st.session_state.reference_code else None
                 )
+                logger.info("Evaluating OpenRouter generated code...")
                 st.session_state.evaluation_results["openrouter"] = evaluate_code(
                     st.session_state.last_generated_code["openrouter"],
                     st.session_state.reference_code if st.session_state.reference_code else None
                 )
+            logger.info("Code evaluation completed successfully")
             st.success("Evaluation complete!")
         else:
+            logger.warning("Evaluation attempted but code not available from both models")
             st.error("Please generate code from both models first")
 
 async def handle_chat_input(prompt: str):
+    logger.info(f"Handling chat input: {prompt[:100]}...")
     st.session_state.chat_history.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
-    
+
+    logger.info("Getting parallel responses from both models...")
     # Get streaming responses from both models
     with st.chat_message("assistant"):
         col1, col2 = st.columns(2)
@@ -109,31 +148,37 @@ async def handle_chat_input(prompt: str):
             st.write("##### gpt-oss-120b (OpenRouter)")
             openrouter_container = st.empty()
             openrouter_container = openrouter_container.code("", language="python")
-        
-        vllm_gen, openrouter_gen = await get_parallel_responses(prompt, st.session_state.context)
-        
+
+        vllm_gen, openrouter_gen = await get_parallel_responses(prompt)
+
         async def process_vllm_stream(container):
+            logger.info("Processing vLLM stream...")
             response_text = ""
             async for chunk in vllm_gen:
                 response_text += chunk
                 cleaned_text = response_text.strip().removeprefix("```python").removeprefix("```").removesuffix("```").strip()
                 container.code(cleaned_text, language="python")
+            logger.info(f"vLLM stream complete. Total length: {len(cleaned_text)} chars")
             return cleaned_text
 
         async def process_openrouter_stream(container):
+            logger.info("Processing OpenRouter stream...")
             response_text = ""
             async for chunk in openrouter_gen:
                 response_text += chunk
                 cleaned_text = response_text.strip().removeprefix("```python").removeprefix("```").removesuffix("```").strip()
                 container.code(cleaned_text, language="python")
+            logger.info(f"OpenRouter stream complete. Total length: {len(cleaned_text)} chars")
             return cleaned_text
 
         # Run both streams concurrently
+        logger.info("Running both streams concurrently...")
         final_vllm_response, final_openrouter_response = await asyncio.gather(
             process_vllm_stream(vllm_container),
             process_openrouter_stream(openrouter_container)
         )
-        
+
+        logger.info("Both streams completed successfully")
         message = {
             "role": "assistant",
             "content": "",
@@ -143,9 +188,17 @@ async def handle_chat_input(prompt: str):
         st.session_state.chat_history.append(message)
         st.session_state.last_generated_code["vllm"] = final_vllm_response
         st.session_state.last_generated_code["openrouter"] = final_openrouter_response
+        logger.info("Chat input handling complete. Code saved to session state.")
 
 # Main interface
 st.title("gpt-oss-120b: vLLM vs OpenRouter Inference Comparison")
+
+# Handle code generation trigger
+if st.session_state.generate_code_trigger and st.session_state.current_prompt:
+    logger.info("Processing code generation trigger")
+    st.session_state.generate_code_trigger = False
+    asyncio.run(handle_chat_input(st.session_state.current_prompt))
+    st.session_state.current_prompt = None
 
 # Display chat history
 for message in st.session_state.chat_history:
@@ -160,11 +213,7 @@ for message in st.session_state.chat_history:
             st.write("##### gpt-oss-120b (OpenRouter)")
             st.code(message["openrouter_response"], language="python")
 
-if prompt := st.chat_input("What code would you like to generate?"):
-    if not st.session_state.context:
-        st.error("Please ingest a GitHub repository first!")
-    else:
-        asyncio.run(handle_chat_input(prompt))
+# Inline chat input in the main interface has been disabled to avoid duplicate triggers.
 
 # Display evaluation results
 if st.session_state.evaluation_results["vllm"] and st.session_state.evaluation_results["openrouter"]:

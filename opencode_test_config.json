@@ -1,0 +1,68 @@
+{
+  "test_configurations": [
+    {
+      "name": "Basic Code Understanding",
+      "models": [
+        "openrouter/openai/gpt-oss-120b",
+        "openrouter/openai/gpt-oss-20b"
+      ],
+      "prompts": [
+        "List all Python files in this repository",
+        "Show me the main entry point of this application",
+        "What dependencies does this project use?"
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "Code Search and Analysis",
+      "models": [
+        "openrouter/openai/gpt-oss-120b",
+        "openrouter/qwen/qwen3-coder",
+        "openrouter/deepseek/deepseek-chat-v3-0324"
+      ],
+      "prompts": [
+        "Find all functions that contain 'evaluate' in their name",
+        "Search for all TODO comments in the codebase",
+        "Find all API endpoints or routes defined in this project"
+      ],
+      "timeout": 180
+    },
+    {
+      "name": "Code Generation",
+      "models": [
+        "openrouter/openai/gpt-oss-120b",
+        "openrouter/qwen/qwen3-coder",
+        "openrouter/mistralai/codestral-2508"
+      ],
+      "prompts": [
+        "Create a simple test file for the main module",
+        "Add a function to calculate the average of a list of numbers",
+        "Write a utility function to validate email addresses"
+      ],
+      "timeout": 180
+    },
+    {
+      "name": "Advanced Agent Tasks",
+      "models": [
+        "openrouter/openai/gpt-oss-120b",
+        "openrouter/anthropic/claude-sonnet-4"
+      ],
+      "prompts": [
+        "Analyze the code structure and suggest improvements",
+        "Find potential security issues in the codebase",
+        "Identify code duplication and suggest refactoring"
+      ],
+      "timeout": 240
+    }
+  ],
+  "default_models": [
+    "openrouter/openai/gpt-oss-120b",
+    "openrouter/openai/gpt-oss-20b"
+  ],
+  "default_prompts": [
+    "List all Python files in this repository",
+    "Find all functions that contain 'evaluate' in their name",
+    "Show me the main entry point of this application",
+    "What dependencies does this project use?"
+  ]
+}

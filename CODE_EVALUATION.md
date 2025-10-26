@@ -9,10 +9,33 @@ We use:
 - OpenRouter for cloud inference
 - LiteLLM for OpenRouter orchestration
 - DeepEval for evaluation
-- Gitingest for ingesting code
 - Streamlit for the UI
+- **NEW:** Opencode for agent evaluation
 
 ---
+
+## 🎯 Two Evaluation Modes
+
+This project now supports **two complementary evaluation approaches**:
+
+### 1. **Code Generation Evaluation** (`app.py`)
+Direct code generation testing: prompt → code output
+- Tests raw code generation quality
+- Evaluates correctness, readability, and best practices
+- Uses DeepEval for scoring
+- Side-by-side comparison of vLLM vs OpenRouter
+
+### 2. **Agent Evaluation** (`opencode_app.py`) 🆕
+Coding agent behavior testing: query → tool usage → response
+- Tests how models perform as coding agents using [opencode](https://github.com/sst/opencode)
+- Evaluates tool usage, search capabilities, and task completion
+- Measures execution time and error rates
+- Supports multiple models beyond gpt-oss
+
+**Use both evaluations together for a complete picture of model capabilities!**
+
+---
+
 ## Setup and Installation
 
 Ensure you have Python 3.12 or later installed on your system.
@@ -45,12 +68,11 @@ streamlit run app.py
 
 ## Usage
 
-1. Enter a GitHub repository URL in the sidebar
-2. Click "Ingest Repository" to load the repository context
-3. Enter your code generation prompt in the chat
-4. View the generated code from both models side by side
-5. Click on "Evaluate Code" to evaluate code using DeepEval
-6. View the evaluation metrics comparing both models' performance
+1. Enter your code generation prompt in the sidebar and click "Generate Code"
+2. (Optional) Provide reference code in the sidebar to benchmark against
+3. Review the generated outputs from both providers side by side
+4. Click "Evaluate Generated Code" to score the results with DeepEval
+5. Inspect the detailed evaluation metrics for each provider
 
 ## Evaluation Metrics
 
@@ -71,14 +93,3 @@ Each metric is scored on a scale of 0-10, with the following general interpretat
 The overall score is calculated as an average of these three metrics.
 
 ---
-
-## 📬 Stay Updated with Our Newsletter!
-**Get a FREE Data Science eBook** 📖 with 150+ essential lessons in Data Science when you subscribe to our newsletter! Stay in the loop with the latest tutorials, insights, and exclusive resources. [Subscribe now!](https://join.dailydoseofds.com)
-
-[![Daily Dose of Data Science Newsletter](https://github.com/patchy631/ai-engineering/blob/main/resources/join_ddods.png)](https://join.dailydoseofds.com)
-
----
-
-## Contribution
-
-Contributions are welcome! Please fork the repository and submit a pull request with your improvements. 

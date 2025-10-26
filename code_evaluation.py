@@ -1,18 +1,27 @@
+import logging
 from deepeval import evaluate
 from deepeval.metrics import GEval
 from deepeval.test_case import LLMTestCase, LLMTestCaseParams
 from deepeval.metrics.g_eval import Rubric
 from typing import Dict, Any
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 def evaluate_code(generated_code: str, reference_code: str = None):
+    logger.info("Starting code evaluation")
+    logger.info(f"  Generated code length: {len(generated_code) if generated_code else 0} chars")
+    logger.info(f"  Reference code provided: {bool(reference_code)}")
+
     try:
-        # Initialize test case
+        logger.info("Initializing test case...")
         test_case = LLMTestCase(
             input="Code Generation Task",
             actual_output=generated_code,
             expected_output=reference_code if reference_code else ""
         )
 
+        logger.info("Setting up evaluation metrics...")
         # Code Correctness Metric
         correctness_metric = GEval(
             name="Code Correctness",
@@ -73,13 +82,17 @@ def evaluate_code(generated_code: str, reference_code: str = None):
             threshold=0.7
         )
 
+        logger.info("Running evaluation metrics...")
         # Run evaluation
         metrics = [correctness_metric, readability_metric, best_practices_metric]
         for metric in metrics:
+            logger.info(f"  Measuring {metric.name}...")
             metric.measure(test_case)
+            logger.info(f"  {metric.name} score: {metric.score}")
 
         # Calculate overall score
         overall_score = (correctness_metric.score + readability_metric.score + best_practices_metric.score) / 3
+        logger.info(f"Overall evaluation score: {overall_score}")
 
         # Prepare detailed metrics
         detailed_metrics = {
@@ -97,13 +110,15 @@ def evaluate_code(generated_code: str, reference_code: str = None):
             }
         }
 
+        logger.info("Code evaluation completed successfully")
         return {
             "overall_score": overall_score,
             "detailed_metrics": detailed_metrics,
-            "passed": overall_score >= 0.7 
+            "passed": overall_score >= 0.7
         }
 
     except Exception as e:
+        logger.error(f"Error evaluating code: {str(e)}", exc_info=True)
         return {
             "error": f"Error evaluating code: {str(e)}",
             "overall_score": 0.0,
