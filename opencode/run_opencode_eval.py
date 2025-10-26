@@ -11,7 +11,7 @@ import argparse
 import sys
 import json
 from pathlib import Path
-from opencode.opencode_evaluation import OpencodeEvaluator
+from opencode_evaluation import OpencodeEvaluator
 import logging
 
 logging.basicConfig(
@@ -43,7 +43,8 @@ def run_scenario(evaluator: OpencodeEvaluator, scenario: dict, output_prefix: st
     
     results = evaluator.compare_models(
         scenario['models'],
-        scenario['prompts']
+        scenario['prompts'],
+        timeout=scenario.get('timeout', 120)
     )
     
     report = evaluator.generate_comparison_report(results)
@@ -231,7 +232,7 @@ Examples:
     logger.info("="*80)
     
     try:
-        results = evaluator.compare_models(models, prompts)
+        results = evaluator.compare_models(models, prompts, timeout=args.timeout)
         
         report = evaluator.generate_comparison_report(results)
         print("\n" + report)

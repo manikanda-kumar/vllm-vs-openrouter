@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import json
 import os
 from pathlib import Path
-from opencode.opencode_evaluation import OpencodeEvaluator
+from opencode_evaluation import OpencodeEvaluator
 import logging
 
 logging.basicConfig(
@@ -125,7 +125,7 @@ with st.sidebar:
             with st.spinner("Running evaluation... This may take several minutes."):
                 try:
                     evaluator = OpencodeEvaluator(test_repo_path)
-                    results = evaluator.compare_models(selected_models, prompts)
+                    results = evaluator.compare_models(selected_models, prompts, timeout=timeout)
                     st.session_state.evaluation_results = results
                     st.success("Evaluation complete!")
                     st.rerun()
@@ -278,15 +278,23 @@ if st.session_state.evaluation_results:
                 
                 st.markdown(f"### {model.split('/')[-1]}")
                 
-                col1, col2, col3, col4 = st.columns(4)
+                col1, col2, col3, col4, col5 = st.columns(5)
                 with col1:
-                    st.metric("Success", "✅" if analysis["success"] else "❌")
+                    if analysis["metrics"].get("timed_out"):
+                        status = "⏱️ Timeout"
+                    elif analysis["metrics"]["has_errors"]:
+                        status = "❌ Failed"
+                    else:
+                        status = "✅ Success"
+                    st.metric("Status", status)
                 with col2:
                     st.metric("Time", f"{analysis['execution_time']:.2f}s")
                 with col3:
                     st.metric("Tools Used", analysis["metrics"]["tool_count"])
                 with col4:
-                    st.metric("Has Errors", "⚠️" if analysis["metrics"]["has_errors"] else "✅")
+                    st.metric("Return Code", raw.get("returncode", 0))
+                with col5:
+                    st.metric("Has Code", "✅" if analysis["metrics"]["has_code"] else "—")
                 
                 if analysis["metrics"]["tools_used"]:
                     st.write("**Tools Used:**", ", ".join(analysis["metrics"]["tools_used"]))
@@ -297,7 +305,6 @@ if st.session_state.evaluation_results:
                 if analysis["metrics"]["search_operations"]:
                     st.write("**Search Operations:**", ", ".join(analysis["metrics"]["search_operations"]))
                 
-                st.write(f"**Has Code:** {'Yes' if analysis['metrics']['has_code'] else 'No'}")
                 st.write(f"**Response Length:** {analysis['metrics']['response_length']} characters")
                 
                 if raw.get("stdout"):
@@ -305,8 +312,13 @@ if st.session_state.evaluation_results:
                     st.code(raw["stdout"], language="text")
 
                 if raw.get("stderr"):
-                    st.write("**Errors:**")
-                    st.code(raw["stderr"], language="text")
+                    if analysis["metrics"]["has_errors"]:
+                        st.write("**Errors (stderr):**")
+                        st.code(raw["stderr"], language="text")
+                    else:
+                        st.write("**Logs (stderr):**")
+                        with st.container():
+                            st.code(raw["stderr"], language="text")
                 
                 st.write("---")
     

@@ -138,44 +138,48 @@ class OpencodeEvaluator:
             "metrics": {}
         }
         
-        output = result.get("stdout", "")
+        stdout = result.get("stdout", "")
         stderr = result.get("stderr", "")
+        combined = (stdout + "\n" + stderr).lower()
         
-        # Check if tools were used
-        analysis["metrics"]["tools_used"] = self._detect_tools_used(output)
+        # Check if tools were used - scan both stdout and stderr
+        analysis["metrics"]["tools_used"] = self._detect_tools_used(combined)
         analysis["metrics"]["tool_count"] = len(analysis["metrics"]["tools_used"])
         
-        # Check for errors - only count actual failures
-        # Don't count stderr alone as many tools output warnings/info to stderr
-        # Don't count the word "error" as it could be in code, docs, or normal output
-        analysis["metrics"]["has_errors"] = not result["success"]
+        # Strict error detection: only count actual failures
+        # Don't count stderr alone as many tools output logs/info to stderr
+        timed_out = result.get("error") == "timeout"
+        has_errors = (result.get("returncode", 0) != 0) or timed_out
+        analysis["metrics"]["has_errors"] = has_errors
+        analysis["metrics"]["timed_out"] = timed_out
         
         # Check response completeness
-        analysis["metrics"]["response_length"] = len(output)
-        analysis["metrics"]["has_code"] = "```" in output or "def " in output or "class " in output
+        analysis["metrics"]["response_length"] = len(stdout)
+        analysis["metrics"]["has_code"] = "```" in stdout or "def " in stdout or "class " in stdout
         
         # Check for file operations
-        analysis["metrics"]["file_operations"] = self._detect_file_operations(output)
+        analysis["metrics"]["file_operations"] = self._detect_file_operations(combined)
         
         # Check for search operations
-        analysis["metrics"]["search_operations"] = self._detect_search_operations(output)
+        analysis["metrics"]["search_operations"] = self._detect_search_operations(combined)
         
         return analysis
     
-    def _detect_tools_used(self, output: str) -> List[str]:
+    def _detect_tools_used(self, text: str) -> List[str]:
         """Detect which tools were mentioned/used in the output."""
         tools = []
         tool_keywords = [
-            "read_file", "edit", "grep_search", "file_search",
-            "run_in_terminal", "list_dir", "semantic_search",
-            "fetch_url", "web_search", "mkdir", "delete_file"
+            "glob", "grep", "read", "read_file", "edit", "grep_search", 
+            "file_search", "run_in_terminal", "list_dir", "semantic_search",
+            "fetch_url", "web_search", "mkdir", "delete_file", "list"
         ]
         
+        text_lower = text.lower()
         for tool in tool_keywords:
-            if tool in output.lower():
+            if tool in text_lower:
                 tools.append(tool)
         
-        return tools
+        return list(set(tools))
     
     def _detect_file_operations(self, output: str) -> List[str]:
         """Detect file operations in the output."""
@@ -202,7 +206,8 @@ class OpencodeEvaluator:
     def compare_models(
         self,
         models: List[str],
-        prompts: List[str]
+        prompts: List[str],
+        timeout: int = 120
     ) -> List[Dict]:
         """
         Compare multiple models across multiple prompts.
@@ -222,8 +227,8 @@ class OpencodeEvaluator:
             for model in models:
                 logger.info(f"\nTesting model: {model}")
                 
-                # Run the query
-                result = self.run_opencode_query(model, prompt)
+                # Run the query with configured timeout
+                result = self.run_opencode_query(model, prompt, timeout=timeout)
                 
                 # Analyze the response
                 analysis = self.analyze_agent_response(result)
@@ -280,10 +285,16 @@ class OpencodeEvaluator:
                     report.append("-" * 50)
                 
                 if raw.get("stderr"):
-                    report.append(f"\nErrors:")
-                    report.append("-" * 50)
-                    report.append(raw["stderr"][:500])
-                    report.append("-" * 50)
+                    if analysis['metrics']['has_errors']:
+                        report.append(f"\nErrors (stderr):")
+                        report.append("-" * 50)
+                        report.append(raw["stderr"][:500])
+                        report.append("-" * 50)
+                    else:
+                        report.append(f"\nLogs (stderr):")
+                        report.append("-" * 50)
+                        report.append(raw["stderr"][:500])
+                        report.append("-" * 50)
                 
                 report.append("")
         

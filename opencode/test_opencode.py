@@ -6,7 +6,7 @@ Usage: python test_opencode.py [--repo PATH] [--models MODEL1,MODEL2] [--prompt 
 
 import argparse
 import sys
-from opencode.opencode_evaluation import OpencodeEvaluator
+from opencode_evaluation import OpencodeEvaluator
 import logging
 
 logging.basicConfig(
@@ -77,7 +77,7 @@ def main():
     evaluator = OpencodeEvaluator(args.repo)
     
     try:
-        results = evaluator.compare_models(models, prompts)
+        results = evaluator.compare_models(models, prompts, timeout=args.timeout)
         
         report = evaluator.generate_comparison_report(results)
         print("\n" + report)
