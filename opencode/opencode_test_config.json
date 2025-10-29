@@ -9,7 +9,10 @@
       "prompts": [
         "List all Python files in this repository",
         "Show me the main entry point of this application",
-        "What dependencies does this project use?"
+        "What dependencies does this project use?",
+        "Summarize the purpose of this project in 2-3 sentences based on the README and top-level files",
+        "List top-level packages/modules and briefly describe each",
+        "Identify the main configuration files (e.g., pyproject.toml, setup.cfg, requirements.txt) and explain their roles"
       ],
       "timeout": 120
     },
@@ -22,8 +25,12 @@
       ],
       "prompts": [
         "Find all functions that contain 'evaluate' in their name",
-        "Search for all TODO comments in the codebase",
-        "Find all API endpoints or routes defined in this project"
+        "Search for all TODO, FIXME, and XXX comments in the codebase",
+        "Find all occurrences where environment variables are read or used",
+        "Locate all uses of reflection or dynamic imports",
+        "Identify files that open network connections (HTTP, sockets, etc.)",
+        "Find all calls to 'eval' or 'exec' and assess their safety",
+        "Locate any hard-coded credentials, tokens, or API keys (report safely without printing secrets)"
       ],
       "timeout": 180
     },
@@ -35,9 +42,12 @@
         "openrouter/mistralai/codestral-2508"
       ],
       "prompts": [
-        "Create a simple test file for the main module",
-        "Add a function to calculate the average of a list of numbers",
-        "Write a utility function to validate email addresses"
+        "Create a simple test file for the main module using pytest conventions",
+        "Add a function to calculate the average of a list of numbers (with type hints and docstring)",
+        "Write a utility function to validate email addresses with tests",
+        "Add argument parsing to the CLI entry-point so it accepts a '--verbose' flag",
+        "Create a small logging helper that standardizes log formatting across modules",
+        "Introduce a simple error type hierarchy (custom exceptions) and use it in one module"
       ],
       "timeout": 180
     },
@@ -48,11 +58,126 @@
         "openrouter/anthropic/claude-sonnet-4"
       ],
       "prompts": [
-        "Analyze the code structure and suggest improvements",
-        "Find potential security issues in the codebase",
-        "Identify code duplication and suggest refactoring"
+        "Analyze the code structure and suggest improvements (layering, separation of concerns, naming)",
+        "Find potential security issues in the codebase and propose mitigations",
+        "Identify code duplication and suggest refactoring steps",
+        "Propose a module-level architecture diagram in text form and explain responsibilities",
+        "Evaluate error handling consistency and suggest a standardized approach",
+        "Point out potential performance bottlenecks with a brief rationale"
       ],
       "timeout": 240
+    },
+    {
+      "name": "Refactoring and Cleanup",
+      "models": [
+        "openrouter/openai/gpt-oss-120b",
+        "openrouter/qwen/qwen3-coder"
+      ],
+      "prompts": [
+        "Identify and remove unused imports across Python files",
+        "Convert obvious string concatenations to f-strings where appropriate",
+        "Suggest clearer names for functions or variables that are overly generic",
+        "Split any function longer than ~50 lines into smaller, cohesive helpers (explain plan)",
+        "Add or fix type hints in one core module to improve clarity",
+        "Replace deprecated APIs found in the codebase with modern equivalents"
+      ],
+      "timeout": 180
+    },
+    {
+      "name": "Bug Finding and Fixing",
+      "models": [
+        "openrouter/openai/gpt-oss-120b",
+        "openrouter/deepseek/deepseek-chat-v3-0324"
+      ],
+      "prompts": [
+        "Find conditional branches that do not return a value on all paths",
+        "Detect off-by-one errors in loops if any and explain the fix",
+        "Identify places where exceptions may be swallowed or ignored",
+        "Find potential race conditions or shared mutable state issues",
+        "Locate file I/O that does not properly close files or lacks context managers",
+        "Identify any JSON/YAML parsing that does not handle errors robustly"
+      ],
+      "timeout": 210
+    },
+    {
+      "name": "Testing and Coverage",
+      "models": [
+        "openrouter/openai/gpt-oss-120b",
+        "openrouter/mistralai/codestral-2508"
+      ],
+      "prompts": [
+        "List modules that likely need tests based on complexity and importance",
+        "Generate pytest skeletons for two core modules with parametrized cases",
+        "Propose a minimal CI workflow for running tests and linting",
+        "Suggest property-based tests for a pure function of your choosing",
+        "Identify flaky-test risks and propose mitigation strategies",
+        "Recommend structure for test data and fixtures"
+      ],
+      "timeout": 180
+    },
+    {
+      "name": "Documentation and Comments",
+      "models": [
+        "openrouter/openai/gpt-oss-120b",
+        "openrouter/qwen/qwen3-coder"
+      ],
+      "prompts": [
+        "Identify public APIs with missing or outdated docstrings and draft improvements",
+        "Generate a short 'Getting Started' section for the README based on current structure",
+        "Create a CONTRIBUTING guidelines outline tailored to this repo",
+        "Add inline comments to a complex function to explain non-obvious logic",
+        "Draft a TROUBLESHOOTING section for common errors users may face",
+        "Propose a consistent docstring style and convert one module to follow it"
+      ],
+      "timeout": 150
+    },
+    {
+      "name": "Dependency and Build",
+      "models": [
+        "openrouter/openai/gpt-oss-120b",
+        "openrouter/deepseek/deepseek-chat-v3-0324"
+      ],
+      "prompts": [
+        "Parse dependencies from requirements.txt or pyproject.toml and list them",
+        "Identify outdated dependencies and potential upgrade paths",
+        "Explain how the project is built or packaged and identify gaps",
+        "Suggest version pinning or constraints to improve reproducibility",
+        "Locate any optional dependencies and describe their features",
+        "Describe how entry points or console scripts are configured"
+      ],
+      "timeout": 150
+    },
+    {
+      "name": "Cross-File Reasoning",
+      "models": [
+        "openrouter/openai/gpt-oss-120b",
+        "openrouter/qwen/qwen3-coder"
+      ],
+      "prompts": [
+        "Trace how data flows from an input (CLI or API) through to a core function and back",
+        "Map out the call chain for a key operation across multiple modules",
+        "Identify where configuration is loaded and how it propagates through the code",
+        "Explain how errors are surfaced to the user layer (CLI/API) from deeper modules",
+        "Describe the boundaries between domain logic and I/O layers",
+        "Identify tight coupling between modules and suggest decoupling strategies"
+      ],
+      "timeout": 240
+    },
+    {
+      "name": "Regex and Text Processing",
+      "models": [
+        "openrouter/openai/gpt-oss-120b",
+        "openrouter/mistralai/codestral-2508"
+      ],
+      "prompts": [
+        "Search for all email-like patterns in source files and list file paths",
+        "Find and list all URLs present in the repository source files",
+        "Detect repeated code blocks using simple textual fingerprinting suggestions",
+        "Locate all FIXME lines with associated context (2 lines before and after, in summary form)",
+        "Find patterns of error messages and group them by category (I/O, network, parse, etc.)",
+        "Identify any usage of insecure regex patterns susceptible to catastrophic backtracking"
+      ],
+      "timeout": 180
     }
   ],
   "default_models": [
